@@ -15,6 +15,7 @@
 	const STAT_LABELS = { pass_yd: 'Pass yds', pass_td: 'Pass TD', pass_int: 'INT thrown', rush_yd: 'Rush yds', rush_td: 'Rush TD', rec: 'Receptions', rec_yd: 'Rec yds', rec_td: 'Rec TD', fum_lost: 'Fumbles lost', two_pt: '2-pt conv' };
 
 	const headers = () => ({ 'content-type': 'application/json', 'x-admin-key': adminKey });
+	$: rounds = pool?.rounds || ROUNDS;
 
 	async function login() {
 		error = '';
@@ -81,7 +82,7 @@
 		</select>
 		<label for="rd">Round</label>
 		<select id="rd" bind:value={round}>
-			{#each ROUNDS as r}<option value={r.id}>{r.label}</option>{/each}
+			{#each rounds as r}<option value={r.id}>{r.label}</option>{/each}
 		</select>
 		<div class="row">
 			{#each Object.keys(STAT_LABELS) as f}
@@ -98,7 +99,7 @@
 		<h2 style="margin-top:0">Settings</h2>
 		<label for="rl">Roster lock (ISO datetime)</label>
 		<input id="rl" bind:value={settings.rosterLockAt} />
-		{#each ROUNDS as r}
+		{#each rounds as r}
 			<label for={`lk-${r.id}`}>{r.label} 2x lock (ISO datetime)</label>
 			<input id={`lk-${r.id}`} bind:value={settings.roundLocks[r.id]} />
 		{/each}
@@ -110,11 +111,11 @@
 	</div>
 
 	<div class="card">
-		<h2 style="margin-top:0">Demo tools</h2>
-		<p class="muted small">Load sample Wild Card stat lines to demo the leaderboard, or reseed everything (wipes entrants, rosters, picks and scores, restores demo locks).</p>
+		<h2 style="margin-top:0">Contest tools</h2>
+		<p class="muted small">Load sample Wild Card stat lines to demo the leaderboard, or reseed everything (wipes entrants, rosters, picks and scores). Reseed loads the active contest — the shadow contest while <code>src/lib/shadow-data.json</code> exists, otherwise the demo data.</p>
 		<div class="row">
 			<button class="secondary" on:click={() => adminPost('/api/admin/seed-scores', 'Sample scores loaded')}>Load sample scores</button>
-			<button class="danger" on:click={() => adminPost('/api/admin/seed', 'Reseeded')}>Reseed demo data</button>
+			<button class="danger" on:click={() => adminPost('/api/admin/seed', 'Reseeded')}>Reseed (wipe + reload contest)</button>
 		</div>
 	</div>
 {/if}

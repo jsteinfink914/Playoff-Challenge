@@ -26,6 +26,8 @@
 	});
 
 	$: byId = pool ? new Map(pool.players.map((p) => [p.id, p])) : new Map();
+	$: rounds = pool?.rounds || ROUNDS;
+	$: roundLabel = rounds.find((r) => r.id === round)?.label || round;
 	$: aliveTeams = pool?.teamsByRound?.[round] || [];
 	$: eligible = myPicks.map((id) => byId.get(id)).filter((p) => p && aliveTeams.includes(p.team));
 	$: lockAt = pool?.locks?.roundLocks?.[round];
@@ -42,7 +44,7 @@
 		saving = false;
 		if (!res.ok) { error = d.error || 'Could not save 2x pick.'; return; }
 		doublers = { ...doublers, [round]: playerId };
-		msg = `2x pick saved for the ${round} round ✔`;
+		msg = `2x pick saved for ${roundLabel} ✔`;
 	}
 </script>
 
@@ -58,7 +60,7 @@
 {:else}
 	<label for="round">Round</label>
 	<select id="round" bind:value={round}>
-		{#each ROUNDS as r}<option value={r.id}>{r.label}</option>{/each}
+		{#each rounds as r}<option value={r.id}>{r.label}</option>{/each}
 	</select>
 	<p class="muted small">
 		{#if lockAt}Locks {new Date(lockAt).toLocaleString()}{#if roundLocked} — <span class="error">LOCKED</span>{/if}{/if}

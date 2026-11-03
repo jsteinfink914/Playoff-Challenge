@@ -3,9 +3,11 @@
 A standalone web app for a friends' NFL playoff fantasy competition. **Not** part of
 The League site — separate repo, separate deploy, different group of people.
 
-> **DEMO STATE:** The app currently ships with demo data — the Jan 2026 playoff
-> field (2025 season) — and demo lock times set in the future so it can be tried
-> end to end. See "Remaining before January" below.
+> **CURRENT STATE (Nov 2026): SHADOW MODE.** The shipped seed is the
+> interactive shadow contest — favorites field, rounds mapped to NFL Weeks
+> 9–11 — because `src/lib/shadow-data.json` is present. See "Shadow mode"
+> below for Jake's playbook. The demo data (Jan 2026 playoff field) remains
+> as the fallback when that file is absent.
 
 ## The format (implemented as specified)
 
@@ -60,6 +62,7 @@ rush yd 0.1, rush TD 6, reception 1, rec yd 0.1, rec TD 6, fumble lost −2,
 | `/` | Leaderboard — WC/DIV/CONF/SB columns + Total, 2x badges, expandable rosters (after lock) |
 | `/enter` | Claim name+PIN, roster builder grouped by team with live position counters |
 | `/doubler` | Weekly 2x pick — only your players whose teams are alive that round |
+| `/shadow` | Shadow mode — real Sleeper data + scoring pipeline on the current favorites field (see below) |
 | `/admin` | Admin-key gated: enter stat lines (points computed automatically), set locks / repeat-doubler, demo tools |
 
 | Endpoint | Notes |
@@ -72,7 +75,7 @@ rush yd 0.1, rush TD 6, reception 1, rec yd 0.1, rec TD 6, fumble lost −2,
 | `POST /api/doubler` | PIN-checked; roster + team-alive + round-lock + repeat-rule enforced |
 | `POST /api/admin/scores` | Admin: `{playerId, round, statLine}` → points computed + stored |
 | `POST /api/admin/settings` | Admin: lock times, `allowRepeatDoubler`, teams-by-round |
-| `POST /api/admin/seed` | Admin: wipe + reseed demo data |
+| `POST /api/admin/seed` | Admin: wipe + reseed the active contest (shadow while `shadow-data.json` exists, else demo) |
 | `POST /api/admin/seed-scores` | Admin: load sample WC stat lines for demoing |
 
 Admin auth: `x-admin-key` header (or `adminKey` in the body) checked against
@@ -113,14 +116,112 @@ See `.env.example`.
 5. Tables are created idempotently on first request and the pool/settings seed
    automatically if empty — no migrations to run.
 
+## Shadow mode — the interactive test drive (Nov 2026)
+
+For 2–3 weeks before the real contest, Jake plays a **live shadow contest
+against himself** in the actual app: he impersonates ~2 entrants through the
+real flow — claim name+PIN, build rosters in the normal builder, pick a 2x
+each week, watch the real leaderboard move on real NFL games. The point is
+proving the whole machinery (seed, locks, scoring feed, leaderboard) before
+friends and money are involved.
+
+**How it activates:** seeding loads the *active contest*, resolved by
+`src/lib/server/contest.js`. When `src/lib/shadow-data.json` exists (it does —
+committed), the seed is the shadow contest; delete that file and seeding falls
+back to the demo contest exactly as before.
+
+- **Field/pool:** the current projected playoff field — the 14 "favorites" if
+  the season ended today (post-Week 8 picture: BUF DEN PIT JAX KC CIN NE /
+  SF MIN NYG CAR CHI DET GB) — generated from Sleeper's players map by
+  *current* team + position (never by name — Sleeper name lookups are
+  ambiguous), ranked by cumulative season `pts_ppr`, capped per team at
+  3 QB / 5 RB / 7 WR / 4 TE (minimum top 2 per position so a team never has a
+  hole). 266 players.
+- **Rounds are regular-season weeks:** WC = NFL Week 9, DIV = Week 10,
+  CONF = Week 11, SB unused. Round ids stay WC/DIV/CONF/SB everywhere; the
+  display labels (stored in settings at seed time, served by `/api/pool`) read
+  "Week 9 · Shadow", "Week 10 · Shadow", "Week 11 · Shadow",
+  "Super Bowl · unused". All 14 teams are eligible every shadow round —
+  bye-week players simply score 0.
+- **Locks (seeded, UTC):** roster lock **and** WC 2x lock = Thu Nov 5 2026,
+  8:00 PM ET (`2026-11-06T01:00:00Z`); DIV = `2026-11-13T01:00:00Z`;
+  CONF = `2026-11-20T01:00:00Z`; SB placeholder `2027-02-01T00:00:00Z`.
+  Repeat doublers allowed; scoring is the standard full-PPR config (Jake
+  explicitly chose NOT to mirror his dynasty league's half-PPR/bonus system).
+
+### Jake's playbook
+
+**(a) Turn it on in production (once).** Set `ADMIN_KEY` in Vercel to your own
+value (Project → Settings → Environment Variables) — production activation
+depends on it, since the admin reseed is the wipe. Deploy, then open `/admin`,
+log in, and hit **Reseed**. That wipes ALL existing entrants (the fake test
+accounts), rosters, picks and scores, and loads the shadow pool + locks.
+
+**(b) Enter your teams.** On `/enter`, claim your ~2 entrant names with PINs
+and build both rosters **before Thu Nov 5, 8:00 PM ET** (the roster lock).
+Set each entrant's Week 9 (WC) 2x pick on `/doubler` before the same lock;
+Weeks 10/11 2x picks lock the following Thursdays at 8 PM ET.
+
+**(c) After each week's games, post the scores.** From a checkout of this repo:
+
+```bash
+APP_URL=https://playoff-challenge-brown.vercel.app ADMIN_KEY=<your key> \
+  node scripts/post-week-scores.mjs --week 9 --round WC
+# after Week 10:  --week 10 --round DIV
+# after Week 11:  --week 11 --round CONF
+```
+
+The loader fetches that week's Sleeper stat lines for every pool player,
+skips all-zero lines (byes/DNPs), and POSTs each line to `/api/admin/scores`
+(auth: `x-admin-key` from the `ADMIN_KEY` env var — never hardcode it). Points
+are computed by the server with the contest scoring; the script prints how
+many posted plus the week's top 5. `--dry-run` previews without posting.
+Then the leaderboard and next week's 2x picks just work in the app.
+
+**(d) January swap.** When the real playoff field is set: regenerate/replace
+`src/lib/shadow-data.json`'s field with the actual 14 playoff teams (or delete
+the file and put the real field in `src/lib/seed.js`), set the rounds back to
+the real WC/DIV/CONF/SB playoff weeks with real kickoff locks, reseed — the
+same loader pattern becomes the playoff stats feed.
+
+### The read-only pipeline view (`/shadow`)
+
+`/shadow` still renders `src/lib/shadow-data.json` directly (no DB): the pool
+browser, the latest week's top scorers, and three auto-built sample rosters
+(Chalk — greedy on season points; Second Helping — every team's top player
+per position off the board; QB-or-Bust — best QBs first, then filled by
+single-week ceiling), each proven legal with `validateRoster` and totaled by
+`computeLeaderboard` itself. Refresh it with:
+
+```bash
+node scripts/refresh-shadow.mjs   # or: npm run shadow:refresh
+```
+
+The script fetches only completed weeks it hasn't seen (raw trimmed stats are
+cached in `scripts/.cache/`, gitignored; delete it to force a full refetch),
+rebuilds `src/lib/shadow-data.json`, prints a scoring-parity check vs
+Sleeper's `pts_ppr`, and exits non-zero on any fetch or validation failure.
+Commit the updated JSON, push (with Jake's approval), and Vercel redeploys.
+
+**Scoring parity notes:** Sleeper charges pass INT at −1 (we charge −2) —
+that explains QB deltas. `fum_lost` is taken **only** from Sleeper's
+`fum_lost` field: a fumble that isn't lost costs 0 (the earlier fallback to
+Sleeper's `fum` count wrongly charged Jaylen Warren −2 in Week 8 2026 for a
+fumble he recovered; fixed — his Week 8 parity delta is now exactly 0).
+A few fringe players show small residual deltas from Sleeper-only extras
+outside the contest's 10-field stat line (e.g. special-teams TDs / fumble
+recoveries Sleeper folds into `pts_ppr`); the contest scoring doesn't count
+those, by design.
+
 ## Remaining before January
 
-- [ ] Replace the demo pool in `src/lib/seed.js` with the **real playoff field**
-      once it's set (teams, seeds, player pool), and set `teams_by_round` for
-      the actual bracket (admin settings can override without a redeploy).
-- [ ] Hook up the **stats feed** (nflverse / Sleeper unofficial stats, re-scored
-      with `computePoints`) to replace manual admin stat entry — admin entry
-      stays as the correction/fallback path.
+- [ ] Replace the shadow favorites field with the **real playoff field** once
+      it's set (regenerate `src/lib/shadow-data.json` for the actual 14 teams,
+      or delete it and put the real field in `src/lib/seed.js`), restore the
+      real WC/DIV/CONF/SB rounds + kickoff locks, and reseed.
+- [ ] The **stats feed** pattern is proven by the shadow loader
+      (`scripts/post-week-scores.mjs` → `/api/admin/scores`); point it at the
+      playoff weeks in January — admin entry stays as the correction/fallback path.
 - [ ] **Confirm the final scoring system** (full PPR? 4-pt pass TD?) and the
       **repeat-doubler rule** with the group; both are config, not code changes.
 - [ ] Set the real lock times (roster lock = first Wild Card kickoff; each

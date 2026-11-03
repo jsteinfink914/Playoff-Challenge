@@ -1,7 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
+	import { ROUNDS } from '$lib/config.js';
 
 	let data = null;
+	let pool = null;
 	let error = '';
 	let me = null;
 	let expanded = null;
@@ -9,13 +11,17 @@
 	onMount(async () => {
 		try { me = JSON.parse(localStorage.getItem('pc_entrant') || 'null'); } catch { me = null; }
 		try {
-			const res = await fetch('/api/leaderboard');
+			const [res, pr] = await Promise.all([fetch('/api/leaderboard'), fetch('/api/pool')]);
 			data = await res.json();
 			if (!res.ok) error = data.error || 'Failed to load leaderboard.';
+			if (pr.ok) pool = await pr.json();
 		} catch (e) {
 			error = e.message;
 		}
 	});
+
+	$: rounds = pool?.rounds || ROUNDS;
+	$: roundNames = rounds.map((r) => r.label).join(', ');
 
 	const fmt = (n) => (typeof n === 'number' ? n.toFixed(1).replace(/\.0$/, '') : n);
 </script>
@@ -29,7 +35,7 @@
 {:else if !data.locked}
 	<div class="card">
 		<p><strong>Rosters are hidden until the lock</strong> ({data.rosterLockAt ? new Date(data.rosterLockAt).toLocaleString() : 'TBD'}).
-		Points accumulate across all four rounds — Wild Card, Divisional, Conference, Super Bowl — and each round you pick one of your players to score double.</p>
+		Points accumulate across all four rounds — {roundNames} — and each round you pick one of your players to score double.</p>
 		<p class="muted">Roster: exactly one player from each of the 14 playoff teams — 3 QB / 4 RB / 4 WR / 3 TE.</p>
 	</div>
 	<h2>Entrants ({data.entrants.length})</h2>
@@ -54,7 +60,7 @@
 		<p class="muted">No entrants.</p>
 	{:else}
 		<table>
-			<thead><tr><th>#</th><th>Name</th><th>WC</th><th>DIV</th><th>CONF</th><th>SB</th><th>Total</th></tr></thead>
+			<thead><tr><th>#</th><th>Name</th>{#each rounds as r}<th>{r.label}</th>{/each}<th>Total</th></tr></thead>
 			<tbody>
 				{#each data.standings as row, i}
 					<tr class:me={me && me.id === row.entrantId}>
@@ -62,10 +68,7 @@
 						<td>
 							<a href={'#'} on:click|preventDefault={() => (expanded = expanded === row.entrantId ? null : row.entrantId)}>{row.name}</a>
 						</td>
-						<td>{fmt(row.rounds.WC)}</td>
-						<td>{fmt(row.rounds.DIV)}</td>
-						<td>{fmt(row.rounds.CONF)}</td>
-						<td>{fmt(row.rounds.SB)}</td>
+						{#each rounds as r}<td>{fmt(row.rounds[r.id])}</td>{/each}
 						<td class="total">{fmt(row.total)}</td>
 					</tr>
 					{#if expanded === row.entrantId}
@@ -76,7 +79,7 @@
 										<span>{p.position} {p.name} <span class="muted">({p.team})</span>
 											{#each p.doubledRounds as r}<span class="badge">2x {r}</span>{/each}
 										</span>
-										<span class="pts">WC {fmt(p.pointsByRound.WC)} · DIV {fmt(p.pointsByRound.DIV)} · CONF {fmt(p.pointsByRound.CONF)} · SB {fmt(p.pointsByRound.SB)}</span>
+										<span class="pts">{#each rounds as r, ri}{#if ri > 0} · {/if}{r.short} {fmt(p.pointsByRound[r.id])}{/each}</span>
 									</li>
 								{/each}
 							</ul>

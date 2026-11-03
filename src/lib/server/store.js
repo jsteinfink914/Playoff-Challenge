@@ -3,8 +3,8 @@
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { query } from './db.js';
-import { PLAYERS, TEAMS_BY_ROUND } from '../seed.js';
-import { ALLOW_REPEAT_DOUBLER, ROUND_IDS } from '../config.js';
+import { getContest } from './contest.js';
+import { ROUND_IDS } from '../config.js';
 
 let seedPromise = null;
 
@@ -19,33 +19,51 @@ export function ensureSeeded() {
 	return seedPromise;
 }
 
-/** Full (re)seed: wipes entrants/rosters/picks/scores and reloads demo data. */
+/**
+ * Full (re)seed: wipes entrants/rosters/picks/scores and reloads the active
+ * contest (shadow if src/lib/shadow-data.json exists, else the demo).
+ * Returns the active contest mode ('shadow' | 'demo').
+ */
 export async function reseed() {
 	await seedAll(true);
+	return (await getContest()).mode;
 }
 
 async function seedAll(wipe) {
+	const contest = await getContest();
 	if (wipe) {
 		for (const t of ['rosters', 'doubler_picks', 'player_scores', 'entrants', 'players', 'settings']) {
 			await query(`DELETE FROM ${t}`);
 		}
 	}
-	for (const p of PLAYERS) {
+	for (const p of contest.players) {
 		await query('INSERT INTO players (id, name, team, position) VALUES ($1,$2,$3,$4)', [p.id, p.name, p.team, p.position]);
 	}
-	// Demo locks: comfortably in the future so the demo is usable out of the box.
-	// In January these get set to the real kickoff times via /admin.
-	const now = Date.now();
-	const day = 24 * 60 * 60 * 1000;
-	const defaults = {
-		roster_lock_at: new Date(now + 30 * day).toISOString(),
-		lock_WC: new Date(now + 30 * day).toISOString(),
-		lock_DIV: new Date(now + 37 * day).toISOString(),
-		lock_CONF: new Date(now + 44 * day).toISOString(),
-		lock_SB: new Date(now + 58 * day).toISOString(),
-		allow_repeat_doubler: ALLOW_REPEAT_DOUBLER ? 'true' : 'false',
-		teams_by_round: JSON.stringify(TEAMS_BY_ROUND)
-	};
+	let defaults;
+	if (contest.locks) {
+		// Fixed locks from the active contest (shadow mode).
+		defaults = {
+			...contest.locks,
+			allow_repeat_doubler: contest.allowRepeatDoubler ? 'true' : 'false',
+			teams_by_round: JSON.stringify(contest.teamsByRound),
+			round_labels: JSON.stringify(contest.roundLabels || {})
+		};
+	} else {
+		// Demo locks: comfortably in the future so the demo is usable out of the box.
+		// In January these get set to the real kickoff times via /admin.
+		const now = Date.now();
+		const day = 24 * 60 * 60 * 1000;
+		defaults = {
+			roster_lock_at: new Date(now + 30 * day).toISOString(),
+			lock_WC: new Date(now + 30 * day).toISOString(),
+			lock_DIV: new Date(now + 37 * day).toISOString(),
+			lock_CONF: new Date(now + 44 * day).toISOString(),
+			lock_SB: new Date(now + 58 * day).toISOString(),
+			allow_repeat_doubler: contest.allowRepeatDoubler ? 'true' : 'false',
+			teams_by_round: JSON.stringify(contest.teamsByRound),
+			round_labels: JSON.stringify(contest.roundLabels || {})
+		};
+	}
 	for (const [k, v] of Object.entries(defaults)) {
 		await query('INSERT INTO settings (key, value) VALUES ($1,$2)', [k, v]);
 	}
@@ -54,17 +72,21 @@ async function seedAll(wipe) {
 
 export async function getSettings() {
 	await ensureSeeded();
+	const contest = await getContest();
 	const rows = await query('SELECT key, value FROM settings');
 	const raw = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-	let teamsByRound = TEAMS_BY_ROUND;
+	let teamsByRound = contest.teamsByRound;
 	try { teamsByRound = JSON.parse(raw.teams_by_round || '{}'); } catch { /* keep default */ }
+	let roundLabels = contest.roundLabels;
+	try { roundLabels = JSON.parse(raw.round_labels || 'null') || roundLabels; } catch { /* keep default */ }
 	const roundLocks = {};
 	for (const r of ROUND_IDS) roundLocks[r] = raw[`lock_${r}`] || null;
 	return {
 		rosterLockAt: raw.roster_lock_at || null,
 		roundLocks,
 		allowRepeatDoubler: raw.allow_repeat_doubler !== 'false',
-		teamsByRound
+		teamsByRound,
+		roundLabels
 	};
 }
 
@@ -77,6 +99,12 @@ export async function setSetting(key, value) {
 export async function getPool() {
 	await ensureSeeded();
 	return query('SELECT id, name, team, position FROM players ORDER BY team, position, name');
+}
+
+/** The active contest's teams (shadow favorites or demo field), in seed order. */
+export async function getTeams() {
+	await ensureSeeded();
+	return (await getContest()).teams;
 }
 
 // ---------- PIN auth ----------
