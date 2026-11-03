@@ -4,6 +4,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { query } from './db.js';
 import { getContest } from './contest.js';
+import { computePoints } from '../core.js';
 import { ROUND_IDS } from '../config.js';
 
 let seedPromise = null;
@@ -179,4 +180,19 @@ export async function getDoublerPicks() {
 export async function getScores() {
 	const rows = await query('SELECT player_id, round, points FROM player_scores');
 	return rows.map((r) => ({ playerId: r.player_id, round: r.round, points: Number(r.points) }));
+}
+
+/**
+ * Compute points for a stat line with the contest scoring and upsert the
+ * score row. The single write path for scores — used by the admin scores API
+ * and by the automatic-scoring cron endpoint. Returns the computed points.
+ */
+export async function upsertScore(playerId, round, statLine) {
+	const line = statLine || {};
+	const points = computePoints(line);
+	await query('DELETE FROM player_scores WHERE player_id = $1 AND round = $2', [playerId, round]);
+	await query('INSERT INTO player_scores (player_id, round, stat_line_json, points) VALUES ($1,$2,$3,$4)', [
+		playerId, round, JSON.stringify(line), points
+	]);
+	return points;
 }

@@ -56,7 +56,7 @@
 		const res = await fetch(path, { method: 'POST', headers: headers(), body: '{}' });
 		const d = await res.json();
 		if (!res.ok) { error = d.error; return; }
-		msg = `${label} ✔ ${d.note || (d.loaded ? d.loaded.length + ' sample stat lines loaded' : '')}`;
+		msg = `${label} ✔ ${d.note || ''}`;
 	}
 </script>
 
@@ -112,9 +112,8 @@
 
 	<div class="card">
 		<h2 style="margin-top:0">Contest tools</h2>
-		<p class="muted small">Load sample Wild Card stat lines to demo the leaderboard, or reseed everything (wipes entrants, rosters, picks and scores). Reseed loads the active contest — the shadow contest while <code>src/lib/shadow-data.json</code> exists, otherwise the demo data.</p>
+		<p class="muted small">Reseed everything (wipes entrants, rosters, picks and scores). Reseed loads the active contest — the shadow contest while <code>src/lib/shadow-data.json</code> exists, otherwise the demo data. Real scores arrive via the weekly score loader (<code>scripts/post-week-scores.mjs</code>) or manual stat-line entry above — there is no sample-score seeding.</p>
 		<div class="row">
-			<button class="secondary" on:click={() => adminPost('/api/admin/seed-scores', 'Sample scores loaded')}>Load sample scores</button>
 			<button class="danger" on:click={() => adminPost('/api/admin/seed', 'Reseeded')}>Reseed (wipe + reload contest)</button>
 		</div>
 	</div>

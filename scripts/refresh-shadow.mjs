@@ -25,7 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computePoints, validateRoster, computeLeaderboard } from '../src/lib/core.js';
 import { SCORING, POSITION_COUNTS } from '../src/lib/config.js';
-import { toStatLine } from './sleeper-line.mjs';
+import { toStatLine } from '../src/lib/server/sleeper.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_FILE = path.join(ROOT, 'src/lib/shadow-data.json');
@@ -85,8 +85,9 @@ function fail(msg) {
 	process.exit(1);
 }
 
-// Stat-line mapping lives in ./sleeper-line.mjs (shared with the weekly score
-// loader). NOTE: fum_lost comes only from Sleeper's fum_lost — never from fum.
+// Stat-line mapping lives in src/lib/server/sleeper.js (shared with the weekly
+// score loader and the cron endpoint). NOTE: fum_lost comes only from
+// Sleeper's fum_lost — never from fum.
 
 async function main() {
 	// --- 1. Season state ------------------------------------------------------

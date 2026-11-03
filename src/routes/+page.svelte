@@ -26,6 +26,22 @@
 	const fmt = (n) => (typeof n === 'number' ? n.toFixed(1).replace(/\.0$/, '') : n);
 </script>
 
+{#snippet doublerGrid(rows)}
+	<h2>2x picks</h2>
+	<p class="muted small">Who has their double-points pick in for each round. The picks themselves stay secret until that round locks.</p>
+	<table>
+		<thead><tr><th>Name</th>{#each rounds as r}<th>{r.label}</th>{/each}</tr></thead>
+		<tbody>
+			{#each rows as e}
+				<tr class:me={me && me.id === e.entrantId}>
+					<td>{e.name}</td>
+					{#each rounds as r}<td>{#if e.doublerStatus?.[r.id]}✓{:else}–{/if}</td>{/each}
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+{/snippet}
+
 <h1>Leaderboard</h1>
 
 {#if error}
@@ -53,6 +69,7 @@
 				{/each}
 			</tbody>
 		</table>
+		{@render doublerGrid(data.entrants)}
 	{/if}
 {:else}
 	<p class="muted small">Rosters locked {data.rosterLockAt ? new Date(data.rosterLockAt).toLocaleString() : ''}. <span class="badge">2x</span> marks that round's doubled player.</p>
@@ -88,5 +105,6 @@
 				{/each}
 			</tbody>
 		</table>
+		{@render doublerGrid(data.standings)}
 	{/if}
 {/if}

@@ -36,6 +36,14 @@ test('active contest is the shadow contest when shadow-data.json exists', async 
 	assert.equal(c.locks.lock_CONF, '2026-11-20T01:00:00Z');
 	assert.equal(c.allowRepeatDoubler, true);
 	assert.deepEqual(c.roundLabels, SHADOW_ROUND_LABELS);
+	// Automatic scoring: rounds map to regular-season Weeks 9/10/11, SB unmapped,
+	// and every pool player carries a Sleeper id for the stats join.
+	assert.deepEqual(c.roundWeeks, {
+		WC: { seasonType: 'regular', nflWeek: 9 },
+		DIV: { seasonType: 'regular', nflWeek: 10 },
+		CONF: { seasonType: 'regular', nflWeek: 11 }
+	});
+	assert.ok(c.players.every((p) => p.sleeperId), 'every shadow player needs a sleeperId');
 });
 
 test('a legal roster can be built from the shadow pool', async () => {

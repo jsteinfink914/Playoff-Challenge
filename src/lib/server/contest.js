@@ -35,6 +35,18 @@ const SHADOW_LOCKS = {
 	lock_SB: '2027-02-01T00:00:00Z' // placeholder — SB is unused in shadow mode
 };
 
+// Round → Sleeper stats mapping for automatic scoring (GET /api/cron/scores).
+// Each entry names the NFL week whose stats feed that round. Shadow mode maps
+// onto regular-season weeks 9/10/11.
+// JANUARY: the real contest edits ONLY this mapping — point WC/DIV/CONF/SB at
+// the postseason weeks (seasonType 'post', Sleeper postseason week numbers).
+const SHADOW_ROUND_WEEKS = {
+	WC: { seasonType: 'regular', nflWeek: 9 },
+	DIV: { seasonType: 'regular', nflWeek: 10 },
+	CONF: { seasonType: 'regular', nflWeek: 11 }
+	// SB: no mapping — unused in shadow mode.
+};
+
 function isValidShadow(data) {
 	return (
 		data &&
@@ -81,12 +93,13 @@ export function getContest() {
 				return {
 					mode: 'shadow',
 					teams,
-					players: shadow.players.map((p) => ({ id: p.id, name: p.name, team: p.team, position: p.position })),
+					players: shadow.players.map((p) => ({ id: p.id, name: p.name, team: p.team, position: p.position, sleeperId: p.sleeperId || null })),
 					// All 14 teams play every shadow round (bye-week players score 0); SB unused.
 					teamsByRound: { WC: abbrs, DIV: abbrs, CONF: abbrs, SB: [] },
 					locks: SHADOW_LOCKS,
 					allowRepeatDoubler: true,
-					roundLabels: SHADOW_ROUND_LABELS
+					roundLabels: SHADOW_ROUND_LABELS,
+					roundWeeks: SHADOW_ROUND_WEEKS
 				};
 			}
 			return {
@@ -96,7 +109,8 @@ export function getContest() {
 				teamsByRound: DEMO_TEAMS_BY_ROUND,
 				locks: null, // store.js computes relative demo locks
 				allowRepeatDoubler: ALLOW_REPEAT_DOUBLER,
-				roundLabels: null
+				roundLabels: null,
+				roundWeeks: null // demo contest: no real weeks feed the rounds — cron reports nothing to load
 			};
 		})();
 	}

@@ -130,19 +130,3 @@ export const TEAMS_BY_ROUND = {
 	CONF: ['DEN', 'NE', 'SEA', 'LAR'],
 	SB: ['SEA', 'NE']
 };
-
-// SAMPLE stat lines (Wild Card round) used ONLY by the demo-scores tooling /
-// /api/admin/seed-scores endpoint so the leaderboard can be demoed end to end.
-// These are illustrative, not official stats. Wipe them with POST /api/admin/seed.
-export const SAMPLE_WC_STATLINES = [
-	{ playerId: 'buf-josh-allen', round: 'WC', statLine: { pass_yd: 273, pass_td: 1, pass_int: 0, rush_yd: 33, rush_td: 2, rec: 0, rec_yd: 0, rec_td: 0, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'buf-james-cook', round: 'WC', statLine: { pass_yd: 0, pass_td: 0, pass_int: 0, rush_yd: 46, rush_td: 0, rec: 2, rec_yd: 5, rec_td: 0, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'ne-drake-maye', round: 'WC', statLine: { pass_yd: 268, pass_td: 1, pass_int: 1, rush_yd: 66, rush_td: 0, rec: 0, rec_yd: 0, rec_td: 0, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'hou-cj-stroud', round: 'WC', statLine: { pass_yd: 250, pass_td: 1, pass_int: 1, rush_yd: 8, rush_td: 0, rec: 0, rec_yd: 0, rec_td: 0, fum_lost: 1, two_pt: 0 } },
-	{ playerId: 'lar-matthew-stafford', round: 'WC', statLine: { pass_yd: 304, pass_td: 3, pass_int: 1, rush_yd: 0, rush_td: 0, rec: 0, rec_yd: 0, rec_td: 0, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'lar-puka-nacua', round: 'WC', statLine: { pass_yd: 0, pass_td: 0, pass_int: 0, rush_yd: 14, rush_td: 1, rec: 10, rec_yd: 111, rec_td: 1, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'sf-christian-mccaffrey', round: 'WC', statLine: { pass_yd: 0, pass_td: 0, pass_int: 0, rush_yd: 48, rush_td: 1, rec: 6, rec_yd: 29, rec_td: 1, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'phi-saquon-barkley', round: 'WC', statLine: { pass_yd: 0, pass_td: 0, pass_int: 0, rush_yd: 106, rush_td: 0, rec: 3, rec_yd: 25, rec_td: 0, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'chi-caleb-williams', round: 'WC', statLine: { pass_yd: 361, pass_td: 2, pass_int: 2, rush_yd: 20, rush_td: 0, rec: 0, rec_yd: 0, rec_td: 0, fum_lost: 0, two_pt: 0 } },
-	{ playerId: 'gb-jordan-love', round: 'WC', statLine: { pass_yd: 323, pass_td: 4, pass_int: 0, rush_yd: 11, rush_td: 0, rec: 0, rec_yd: 0, rec_td: 0, fum_lost: 0, two_pt: 0 } }
-];

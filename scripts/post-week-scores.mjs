@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computePoints } from '../src/lib/core.js';
-import { fetchJSON, toStatLine, isZeroLine } from './sleeper-line.mjs';
+import { fetchJSON, toStatLine, isZeroLine } from '../src/lib/server/sleeper.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ROUNDS = ['WC', 'DIV', 'CONF'];

@@ -63,7 +63,7 @@ rush yd 0.1, rush TD 6, reception 1, rec yd 0.1, rec TD 6, fumble lost −2,
 | `/enter` | Claim name+PIN, roster builder grouped by team with live position counters |
 | `/doubler` | Weekly 2x pick — only your players whose teams are alive that round |
 | `/shadow` | Shadow mode — real Sleeper data + scoring pipeline on the current favorites field (see below) |
-| `/admin` | Admin-key gated: enter stat lines (points computed automatically), set locks / repeat-doubler, demo tools |
+| `/admin` | Admin-key gated: enter stat lines (points computed automatically), set locks / repeat-doubler, contest tools (reseed) |
 
 | Endpoint | Notes |
 | --- | --- |
@@ -71,12 +71,12 @@ rush yd 0.1, rush TD 6, reception 1, rec yd 0.1, rec TD 6, fumble lost −2,
 | `POST /api/entrants` | `{name, pin}` — claim a name (same name+PIN = sign back in) |
 | `POST /api/roster` | PIN-checked, fully validated server-side, rejected after roster lock |
 | `GET /api/roster?entrantId&pin` | Your own roster + 2x picks (PIN-checked) |
-| `GET /api/leaderboard` | Pre-lock: names + submitted flags only. Post-lock: everything |
+| `GET /api/leaderboard` | Pre-lock: names + submitted flags + per-round 2x-picked booleans (never which player). Post-lock: everything; a round's 2x identity is revealed only after that round's lock |
 | `POST /api/doubler` | PIN-checked; roster + team-alive + round-lock + repeat-rule enforced |
 | `POST /api/admin/scores` | Admin: `{playerId, round, statLine}` → points computed + stored |
 | `POST /api/admin/settings` | Admin: lock times, `allowRepeatDoubler`, teams-by-round |
 | `POST /api/admin/seed` | Admin: wipe + reseed the active contest (shadow while `shadow-data.json` exists, else demo) |
-| `POST /api/admin/seed-scores` | Admin: load sample WC stat lines for demoing |
+| `GET /api/cron/scores` | Automatic scoring (Vercel Cron, or admin key): pulls Sleeper stats for each round's mapped NFL week and upserts scores. `?week&round` with the key force-loads one week (backfill) |
 
 Admin auth: `x-admin-key` header (or `adminKey` in the body) checked against
 `ADMIN_KEY`.
@@ -91,9 +91,9 @@ npm run build      # production build (adapter-vercel)
 ```
 
 Try it: claim a name on `/enter`, build a roster, set a 2x pick on `/doubler`,
-then on `/admin` (key: `commish` locally) load the sample scores and set the
-roster lock to a past date to watch the leaderboard reveal. Or with the dev
-server running: `npm run demo:scores` loads the sample stat lines from the CLI.
+then on `/admin` (key: `commish` locally) enter a stat line by hand — or post
+real weekly scores with `npm run shadow:post` — and set the roster lock to a
+past date to watch the leaderboard reveal.
 
 ## Environment variables
 
@@ -162,7 +162,35 @@ and build both rosters **before Thu Nov 5, 8:00 PM ET** (the roster lock).
 Set each entrant's Week 9 (WC) 2x pick on `/doubler` before the same lock;
 Weeks 10/11 2x picks lock the following Thursdays at 8 PM ET.
 
-**(c) After each week's games, post the scores.** From a checkout of this repo:
+**(c) Scores post themselves — automatic scoring via Vercel Cron.** The app
+pulls its own scores now; nobody runs a script each week. `vercel.json`
+schedules `GET /api/cron/scores` three times a week (times UTC):
+
+| When | Cron (UTC) | Why |
+|---|---|---|
+| Sun 8:00 PM ET | `0 1 * * 1` (Mon 01:00 UTC) | in-progress pass — Sunday's games load as *partial* stats, so the leaderboard moves live Sunday night |
+| Tue 7:00 AM ET | `0 12 * * 2` | final pass — after the Monday-night game, the week's numbers settle |
+| Wed 7:00 AM ET | `0 12 * * 3` | stat-correction pass — catches Sleeper's midweek scoring corrections |
+
+The endpoint reads the round→week mapping from `src/lib/server/contest.js`
+(shadow: WC = Week 9, DIV = Week 10, CONF = Week 11), checks Sleeper's state,
+and for each mapped round whose week has stats it fetches the week's lines,
+skips all-zero lines (byes/DNPs), and upserts them through the same store
+function the admin scores API uses — points computed server-side with the
+contest scoring. Runs are **idempotent**: scores are upserts keyed by
+(player, round), so later passes simply overwrite earlier partials; re-running
+changes nothing unless Sleeper's numbers changed. It answers JSON —
+`{ok, stateWeek, loaded: [{round, week, playersPosted}], skipped: [{round, reason}]}`
+— so a run with nothing new to load is a visible no-op, not a silent one.
+
+**Auth:** Vercel Cron invocations carry an `x-vercel-cron` header, which the
+endpoint accepts; a manual hit must pass the admin key (`x-admin-key` header,
+checked against the `ADMIN_KEY` env var). No new env vars. With the key you
+can also force-load any week into any round — backfills and tests:
+`GET /api/cron/scores?week=8&round=WC`.
+
+**Manual fallback:** if cron ever misbehaves, the original loader still works
+unchanged — it POSTs the same lines to `/api/admin/scores`:
 
 ```bash
 APP_URL=https://playoff-challenge-brown.vercel.app ADMIN_KEY=<your key> \
@@ -171,18 +199,16 @@ APP_URL=https://playoff-challenge-brown.vercel.app ADMIN_KEY=<your key> \
 # after Week 11:  --week 11 --round CONF
 ```
 
-The loader fetches that week's Sleeper stat lines for every pool player,
-skips all-zero lines (byes/DNPs), and POSTs each line to `/api/admin/scores`
-(auth: `x-admin-key` from the `ADMIN_KEY` env var — never hardcode it). Points
-are computed by the server with the contest scoring; the script prints how
-many posted plus the week's top 5. `--dry-run` previews without posting.
-Then the leaderboard and next week's 2x picks just work in the app.
+(`--dry-run` previews without posting; `ADMIN_KEY` comes from the environment
+only — never hardcode it.)
 
 **(d) January swap.** When the real playoff field is set: regenerate/replace
 `src/lib/shadow-data.json`'s field with the actual 14 playoff teams (or delete
 the file and put the real field in `src/lib/seed.js`), set the rounds back to
-the real WC/DIV/CONF/SB playoff weeks with real kickoff locks, reseed — the
-same loader pattern becomes the playoff stats feed.
+the real WC/DIV/CONF/SB playoff weeks with real kickoff locks, reseed — and
+edit the `roundWeeks` mapping in `src/lib/server/contest.js` to the
+postseason weeks (`seasonType: 'post'`), so automatic scoring feeds the real
+contest the same way.
 
 ### The read-only pipeline view (`/shadow`)
 
@@ -219,9 +245,10 @@ those, by design.
       it's set (regenerate `src/lib/shadow-data.json` for the actual 14 teams,
       or delete it and put the real field in `src/lib/seed.js`), restore the
       real WC/DIV/CONF/SB rounds + kickoff locks, and reseed.
-- [ ] The **stats feed** pattern is proven by the shadow loader
-      (`scripts/post-week-scores.mjs` → `/api/admin/scores`); point it at the
-      playoff weeks in January — admin entry stays as the correction/fallback path.
+- [ ] **Automatic scoring** is built (`/api/cron/scores` + Vercel Cron,
+      proven in shadow mode); for January, edit the `roundWeeks` mapping in
+      `src/lib/server/contest.js` to the postseason weeks — admin entry and
+      `scripts/post-week-scores.mjs` stay as the correction/fallback path.
 - [ ] **Confirm the final scoring system** (full PPR? 4-pt pass TD?) and the
       **repeat-doubler rule** with the group; both are config, not code changes.
 - [ ] Set the real lock times (roster lock = first Wild Card kickoff; each

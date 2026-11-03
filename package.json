@@ -18,7 +18,6 @@
     "build": "vite build",
     "shadow:refresh": "node scripts/refresh-shadow.mjs",
     "shadow:post": "node scripts/post-week-scores.mjs",
-    "demo:scores": "node scripts/demo-scores.mjs",
     "dev": "vite dev",
     "preview": "vite preview",
     "start": "vite preview --port 4173",
