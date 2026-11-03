@@ -34,7 +34,7 @@ rush yd 0.1, rush TD 6, reception 1, rec yd 0.1, rec TD 6, fumble lost −2,
 
 ## Stack
 
-- **SvelteKit** (Svelte 4 + Vite), mirroring the League site's stack.
+- **SvelteKit** (Svelte 5 + Vite 6), mirroring the League site's stack.
 - **Adapter: `@sveltejs/adapter-vercel`** — it installed cleanly and matches how
   Jake's other sites deploy. The Vercel runtime is pinned to `nodejs22.x` in
   `svelte.config.js` because the local build machine runs Node 24, which this
