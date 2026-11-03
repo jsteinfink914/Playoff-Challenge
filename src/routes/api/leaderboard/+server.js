@@ -9,7 +9,10 @@ import { ROUND_IDS, ROSTER_SIZE } from '$lib/config.js';
 // pick STATUS (booleans only — never which player was picked).
 // After the lock: full rosters, per-round breakdown, totals, and the same 2x
 // status booleans. A round's 2x IDENTITY (the doubledRounds badges) is only
-// revealed once that round's own lock has passed.
+// revealed once that round's own lock has passed. The `reveals` blocks make
+// that reveal explicit per locked round: who doubled whom, his points, and
+// the bonus earned. Unlocked rounds contribute no block and no identity
+// anywhere in the payload.
 export async function GET() {
 	try {
 		await ensureSeeded();
@@ -52,9 +55,43 @@ export async function GET() {
 			return !!lock && now >= lock;
 		};
 
+		// Post-round 2x REVEAL: one block per round whose lock has passed,
+		// listing every entrant with a submitted (complete) roster — who they
+		// doubled, that player's points in the round, and the bonus earned
+		// (the extra copy of those points, counted only when the pick is on
+		// the entrant's roster, matching computeLeaderboard). An entrant with
+		// a roster but no pick for the round gets an explicit null pick
+		// ("no pick"). Ordered by the doubled player's round points, desc.
+		const hasSubmitted = (entrantId) => (rosters[entrantId] || []).length === ROSTER_SIZE;
+		const reveals = ROUND_IDS.filter(roundRevealed).map((round) => ({
+			round,
+			picks: entrants
+				.filter((e) => hasSubmitted(e.id))
+				.map((e) => {
+					const pid = doublerFor(e.id, round);
+					if (!pid) {
+						return { entrantId: e.id, name: e.name, playerId: null, playerName: null, team: null, position: null, points: 0, bonus: 0 };
+					}
+					const p = byId.get(pid);
+					const pts = pointsFor(pid, round);
+					return {
+						entrantId: e.id,
+						name: e.name,
+						playerId: pid,
+						playerName: p?.name || pid,
+						team: p?.team || '',
+						position: p?.position || '',
+						points: pts,
+						bonus: (rosters[e.id] || []).includes(pid) ? pts : 0
+					};
+				})
+				.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
+		}));
+
 		return json({
 			locked: true,
 			rosterLockAt: settings.rosterLockAt,
+			reveals,
 			standings: board.map((row) => ({
 				...row,
 				// computeLeaderboard's `doublers` maps round -> playerId. Keep the

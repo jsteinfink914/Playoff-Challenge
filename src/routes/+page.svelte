@@ -23,6 +23,7 @@
 	$: rounds = pool?.rounds || ROUNDS;
 	$: roundNames = rounds.map((r) => r.label).join(', ');
 
+	const roundLabel = (id) => rounds.find((x) => x.id === id)?.label || id;
 	const fmt = (n) => (typeof n === 'number' ? n.toFixed(1).replace(/\.0$/, '') : n);
 </script>
 
@@ -40,6 +41,32 @@
 			{/each}
 		</tbody>
 	</table>
+{/snippet}
+
+{#snippet revealBlocks(reveals)}
+	{#each reveals || [] as rev}
+		<h2>{roundLabel(rev.round)} — 2x picks</h2>
+		<p class="muted small">The reveal: who doubled whom in {roundLabel(rev.round)}, now that the round has locked. Bonus is the extra copy of the pick's points.</p>
+		<table>
+			<thead><tr><th>Name</th><th>2x pick</th><th>Points</th><th>Bonus</th></tr></thead>
+			<tbody>
+				{#each rev.picks as pk}
+					<tr class:me={me && me.id === pk.entrantId}>
+						<td>{pk.name}</td>
+						{#if pk.playerId}
+							<td>{pk.position} {pk.playerName} <span class="muted">({pk.team})</span></td>
+							<td>{fmt(pk.points)}</td>
+							<td>{pk.bonus > 0 ? '+' : ''}{fmt(pk.bonus)}</td>
+						{:else}
+							<td><span class="muted">no pick</span></td>
+							<td>–</td>
+							<td>–</td>
+						{/if}
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/each}
 {/snippet}
 
 <h1>Leaderboard</h1>
@@ -106,5 +133,6 @@
 			</tbody>
 		</table>
 		{@render doublerGrid(data.standings)}
+		{@render revealBlocks(data.reveals)}
 	{/if}
 {/if}
