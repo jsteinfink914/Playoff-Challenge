@@ -22,51 +22,46 @@
 
 	$: rounds = pool?.rounds || ROUNDS;
 	$: roundNames = rounds.map((r) => r.label).join(', ');
+	// ONE 2x grid covers every round. Open rounds show pick STATUS only (the
+	// doublerStatus booleans — identity stays secret). A round whose own lock
+	// has passed appears in the leaderboard payload's `reveals`, and its cells
+	// switch to the doubled player's name + points, read ONLY from that
+	// reveal data; an entrant absent from the reveal block (or with a null
+	// pick in it) shows "no pick". The payload carries no identity for
+	// unrevealed rounds, so the grid cannot leak one.
+	$: revealPicks = new Map(
+		(data?.reveals || []).map((rev) => [rev.round, new Map(rev.picks.map((pk) => [pk.entrantId, pk]))])
+	);
 
-	const roundLabel = (id) => rounds.find((x) => x.id === id)?.label || id;
+	const roundRevealed = (round) => revealPicks.has(round);
+	const pickFor = (entrantId, round) => revealPicks.get(round)?.get(entrantId) || null;
 	const fmt = (n) => (typeof n === 'number' ? n.toFixed(1).replace(/\.0$/, '') : n);
 </script>
 
 {#snippet doublerGrid(rows)}
 	<h2>2x picks</h2>
-	<p class="muted small">Who has their double-points pick in for each round. The picks themselves stay secret until that round locks.</p>
+	<p class="muted small">A ✓ means the double-points pick is in for a round still to come — who it is stays secret. Once a round locks, the cell shows who they doubled and what that player scored.</p>
 	<table>
 		<thead><tr><th>Name</th>{#each rounds as r}<th>{r.label}</th>{/each}</tr></thead>
 		<tbody>
 			{#each rows as e}
 				<tr class:me={me && me.id === e.entrantId}>
 					<td>{e.name}</td>
-					{#each rounds as r}<td>{#if e.doublerStatus?.[r.id]}✓{:else}–{/if}</td>{/each}
+					{#each rounds as r}
+						<td>
+							{#if roundRevealed(r.id)}
+								{#if pickFor(e.entrantId, r.id)?.playerId}
+									{pickFor(e.entrantId, r.id).position} {pickFor(e.entrantId, r.id).playerName} <span class="muted">({pickFor(e.entrantId, r.id).team})</span> <span class="muted small">· {fmt(pickFor(e.entrantId, r.id).points)}</span>
+								{:else}
+									<span class="muted">no pick</span>
+								{/if}
+							{:else if e.doublerStatus?.[r.id]}✓{:else}–{/if}
+						</td>
+					{/each}
 				</tr>
 			{/each}
 		</tbody>
 	</table>
-{/snippet}
-
-{#snippet revealBlocks(reveals)}
-	{#each reveals || [] as rev}
-		<h2>{roundLabel(rev.round)} — 2x picks</h2>
-		<p class="muted small">The reveal: who doubled whom in {roundLabel(rev.round)}, now that the round has locked. Bonus is the extra copy of the pick's points.</p>
-		<table>
-			<thead><tr><th>Name</th><th>2x pick</th><th>Points</th><th>Bonus</th></tr></thead>
-			<tbody>
-				{#each rev.picks as pk}
-					<tr class:me={me && me.id === pk.entrantId}>
-						<td>{pk.name}</td>
-						{#if pk.playerId}
-							<td>{pk.position} {pk.playerName} <span class="muted">({pk.team})</span></td>
-							<td>{fmt(pk.points)}</td>
-							<td>{pk.bonus > 0 ? '+' : ''}{fmt(pk.bonus)}</td>
-						{:else}
-							<td><span class="muted">no pick</span></td>
-							<td>–</td>
-							<td>–</td>
-						{/if}
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	{/each}
 {/snippet}
 
 <h1>Leaderboard</h1>
@@ -133,6 +128,5 @@
 			</tbody>
 		</table>
 		{@render doublerGrid(data.standings)}
-		{@render revealBlocks(data.reveals)}
 	{/if}
 {/if}
