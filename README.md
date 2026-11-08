@@ -254,3 +254,7 @@ those, by design.
 - [ ] Set the real lock times (roster lock = first Wild Card kickoff; each
       round's 2x lock = that round's first kickoff) via `/admin`.
 - [ ] Set a real `ADMIN_KEY` and confirm the production `DATABASE_URL`.
+
+## Deployment note
+
+This repo is public on purpose: on Vercel's Hobby plan, deployments of private repos are blocked when the commit author is not the project owner. Keeping the repo public lets automated pushes deploy. No secrets live in this repo — ADMIN_KEY and DATABASE_URL are set only in Vercel environment variables.
