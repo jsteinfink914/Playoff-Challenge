@@ -97,6 +97,13 @@ export async function setSetting(key, value) {
 	await query('INSERT INTO settings (key, value) VALUES ($1,$2)', [key, String(value)]);
 }
 
+/** Read one raw settings value (null when unset). getSettings() is the structured view. */
+export async function getSetting(key) {
+	await ensureSeeded();
+	const rows = await query('SELECT value FROM settings WHERE key = $1', [key]);
+	return rows[0]?.value ?? null;
+}
+
 export async function getPool() {
 	await ensureSeeded();
 	return query('SELECT id, name, team, position FROM players ORDER BY team, position, name');

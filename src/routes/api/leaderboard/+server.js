@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/server/db.js';
 import { ensureSeeded, getPool, getRosters, getDoublerPicks, getScores, getSettings } from '$lib/server/store.js';
+import { ensureScoresFresh } from '$lib/server/scoreFreshness.js';
 import { computeLeaderboard } from '$lib/core.js';
 import { ROUND_IDS, ROSTER_SIZE } from '$lib/config.js';
 
@@ -41,6 +42,10 @@ export async function GET() {
 			});
 		}
 
+		// Scores refresh on read: bring due rounds up to date from Sleeper
+		// before computing standings (see scoreFreshness.js for the rule).
+		// Never throws — on any failure the stored scores are served.
+		await ensureScoresFresh();
 		const [pool, scores] = await Promise.all([getPool(), getScores()]);
 		const byId = new Map(pool.map((p) => [p.id, p]));
 		const board = computeLeaderboard(entrants, rosters, doublerPicks, scores);
