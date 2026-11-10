@@ -34,6 +34,13 @@
 	$: roundLocked = lockAt ? new Date().toISOString() >= lockAt : false;
 	$: current = doublers[round];
 
+	// Label of the OTHER round in which this player is already the entrant's 2x
+	// (each player can be doubled only once). Null when the player is still free.
+	function usedElsewhere(playerId) {
+		const r = Object.keys(doublers).find((k) => k !== round && doublers[k] === playerId);
+		return r ? rounds.find((x) => x.id === r)?.label || r : null;
+	}
+
 	async function choose(playerId) {
 		saving = true; msg = ''; error = '';
 		const res = await fetch('/api/doubler', {
@@ -49,7 +56,7 @@
 </script>
 
 <h1>Weekly 2x Pick</h1>
-<p class="muted">Each round, pick ONE player from your roster to score <strong>double</strong> that round. His team has to be playing that round. You can change it until the round locks.{pool && !pool.allowRepeatDoubler ? ' Repeat doublers are OFF for this contest — you can only double a player once all playoffs.' : ''}</p>
+<p class="muted">Each round, pick ONE player from your roster to score <strong>double</strong> that round. His team has to be playing that round. You can change it until the round locks. Each player can be doubled only <strong>once</strong> all playoffs — once you've used a player as your 2x in a round, he can't be doubled again in another round.</p>
 
 {#if !pool}
 	<p class="muted">Loading…</p>
@@ -70,12 +77,18 @@
 	{#if msg}<p class="success">{msg}</p>{/if}
 	<div class="player-grid">
 		{#each eligible as p}
-			<button class="player" class:selected={current === p.id} disabled={roundLocked || saving} on:click={() => choose(p.id)}>
+			{@const usedIn = usedElsewhere(p.id)}
+			<button class="player" class:selected={current === p.id} disabled={roundLocked || saving || !!usedIn} on:click={() => choose(p.id)}>
 				<span class="pos">{p.position} · {p.team}</span> {p.name}
 				{#if current === p.id}<span class="badge">2x</span>{/if}
+				{#if usedIn}<span class="used-note">already doubled in {usedIn}</span>{/if}
 			</button>
 		{/each}
 	</div>
 	{#if eligible.length === 0}<p class="muted">None of your players' teams are playing this round.</p>{/if}
 	<p class="muted small">Greyed-out rounds, eliminated teams and bye teams simply aren't listed — only players actually playing this round can be doubled.</p>
 {/if}
+
+<style>
+	.used-note { display: block; color: var(--muted); font-size: 12px; font-weight: 600; margin-top: 2px; }
+</style>

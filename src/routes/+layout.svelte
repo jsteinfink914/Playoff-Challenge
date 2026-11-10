@@ -25,7 +25,6 @@
 		<a href="/" class:active={path === '/'}>Leaderboard</a>
 		<a href="/enter" class:active={path === '/enter'}>Enter / Roster</a>
 		<a href="/doubler" class:active={path === '/doubler'}>2x Pick</a>
-		<a href="/shadow" class:active={path === '/shadow'}>Shadow</a>
 		<a href="/admin" class:active={path === '/admin'}>Admin</a>
 	</nav>
 </header>

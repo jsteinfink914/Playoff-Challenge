@@ -48,6 +48,22 @@ export function validateRoster(picks, pool) {
 }
 
 /**
+ * Repeat-doubler rule (fixed: each player can be doubled only ONCE per entrant).
+ * Given ONE entrant's doubler picks, returns the id of the OTHER round in which
+ * `playerId` was already doubled, or null when doubling him in `round` is legal.
+ * A pick in `round` itself never conflicts — re-saving/changing a round's pick
+ * before its lock is always fine.
+ * @param {Array<{round:string,playerId:string}>} picks the entrant's doubler picks
+ * @param {string} round the round being saved
+ * @param {string} playerId the player being doubled
+ * @returns {string|null} conflicting round id, or null
+ */
+export function repeatDoubleConflict(picks, round, playerId) {
+	const hit = (picks || []).find((d) => d.playerId === playerId && d.round !== round);
+	return hit ? hit.round : null;
+}
+
+/**
  * Score one player's stat line for one round.
  * @param {Object} statLine fields: pass_yd, pass_td, pass_int, rush_yd, rush_td,
  *                          rec, rec_yd, rec_td, fum_lost, two_pt

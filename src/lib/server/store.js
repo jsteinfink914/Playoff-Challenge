@@ -5,7 +5,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { query } from './db.js';
 import { getContest } from './contest.js';
 import { computePoints } from '../core.js';
-import { ROUND_IDS } from '../config.js';
+import { ALLOW_REPEAT_DOUBLER, ROUND_IDS } from '../config.js';
 
 let seedPromise = null;
 
@@ -45,7 +45,7 @@ async function seedAll(wipe) {
 		// Fixed locks from the active contest (shadow mode).
 		defaults = {
 			...contest.locks,
-			allow_repeat_doubler: contest.allowRepeatDoubler ? 'true' : 'false',
+			allow_repeat_doubler: ALLOW_REPEAT_DOUBLER ? 'true' : 'false',
 			teams_by_round: JSON.stringify(contest.teamsByRound),
 			round_labels: JSON.stringify(contest.roundLabels || {})
 		};
@@ -60,7 +60,7 @@ async function seedAll(wipe) {
 			lock_DIV: new Date(now + 37 * day).toISOString(),
 			lock_CONF: new Date(now + 44 * day).toISOString(),
 			lock_SB: new Date(now + 58 * day).toISOString(),
-			allow_repeat_doubler: contest.allowRepeatDoubler ? 'true' : 'false',
+			allow_repeat_doubler: ALLOW_REPEAT_DOUBLER ? 'true' : 'false',
 			teams_by_round: JSON.stringify(contest.teamsByRound),
 			round_labels: JSON.stringify(contest.roundLabels || {})
 		};
@@ -85,7 +85,10 @@ export async function getSettings() {
 	return {
 		rosterLockAt: raw.roster_lock_at || null,
 		roundLocks,
-		allowRepeatDoubler: raw.allow_repeat_doubler !== 'false',
+		// Repeat doubling is a fixed rule now (config.ALLOW_REPEAT_DOUBLER): the
+		// stored `allow_repeat_doubler` row is legacy and deliberately NOT read —
+		// a stale 'true' in the DB from the earlier opt-in era must not re-allow it.
+		allowRepeatDoubler: ALLOW_REPEAT_DOUBLER,
 		teamsByRound,
 		roundLabels
 	};

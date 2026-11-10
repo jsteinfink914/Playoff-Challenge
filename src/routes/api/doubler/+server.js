@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/server/db.js';
 import { getPool, getRosters, getDoublerPicks, getScores, getSettings, verifyPin } from '$lib/server/store.js';
+import { repeatDoubleConflict } from '$lib/core.js';
 import { ROUND_IDS } from '$lib/config.js';
 
 // POST /api/doubler {entrantId, pin, round, playerId}
@@ -32,14 +33,19 @@ export async function POST({ request }) {
 			return json({ error: `${player?.name || 'That player'}'s team is not playing in the ${round} round.` }, { status: 400 });
 		}
 
-		if (!settings.allowRepeatDoubler) {
-			const others = await query(
-				'SELECT round FROM doubler_picks WHERE entrant_id = $1 AND player_id = $2 AND round <> $3',
-				[entrantId, playerId, round]
-			);
-			if (others.length) {
-				return json({ error: `${player.name} was already your 2x pick in the ${others[0].round} round — repeat doublers are off.` }, { status: 400 });
-			}
+		// Fixed rule: a player can be doubled only ONCE per entrant. A pick for the
+		// SAME round is a re-save/change and always allowed before the lock; a pick
+		// for any OTHER round that reuses an already-doubled player is rejected.
+		// This intentionally ignores the legacy allow_repeat_doubler setting.
+		const myPickRows = await query('SELECT round, player_id FROM doubler_picks WHERE entrant_id = $1', [entrantId]);
+		const conflictRound = repeatDoubleConflict(
+			myPickRows.map((r) => ({ round: r.round, playerId: r.player_id })),
+			round,
+			playerId
+		);
+		if (conflictRound) {
+			const usedLabel = settings.roundLabels?.[conflictRound] || conflictRound;
+			return json({ error: `${player.name} was already your 2x in ${usedLabel} — each player can be doubled only once.` }, { status: 400 });
 		}
 
 		await query('DELETE FROM doubler_picks WHERE entrant_id = $1 AND round = $2', [entrantId, round]);

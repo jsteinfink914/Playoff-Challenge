@@ -16,9 +16,11 @@ export const POSITION_COUNTS = { QB: 3, RB: 4, WR: 4, TE: 3 };
 export const ROSTER_SIZE = 14;
 export const POSITIONS = Object.keys(POSITION_COUNTS);
 
-// Default when the settings table has no override: the same player MAY be doubled
-// in multiple rounds. Admin-configurable via settings key `allow_repeat_doubler`.
-export const ALLOW_REPEAT_DOUBLER = true;
+// Fixed contest rule (Jake, Nov 10 2026): each player may be doubled only ONCE
+// per entrant across all rounds — repeat doubling is not allowed. This constant
+// is the single source of truth; the legacy `allow_repeat_doubler` settings key
+// is no longer consulted anywhere (see store.getSettings and the doubler route).
+export const ALLOW_REPEAT_DOUBLER = false;
 
 // Fantasy points per unit of each stat-line field.
 export const SCORING = {
